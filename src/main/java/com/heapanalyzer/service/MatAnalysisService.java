@@ -187,6 +187,13 @@ public class MatAnalysisService {
         return buildStructuredReport(heapDumpPath.getParent());
     }
 
+    /**
+     * Resolves the MAT launcher script from MAT home.
+     * On Windows, prefers {@code ParseHeapDump.bat}, then {@code ParseHeapDump.cmd}.
+     * On Unix/macOS, uses {@code ParseHeapDump.sh}.
+     *
+     * @return script path when found, otherwise {@code null}
+     */
     Path resolveParseScript(Path matHome) {
         if (isWindows()) {
             Path bat = matHome.resolve("ParseHeapDump.bat");
@@ -207,15 +214,17 @@ public class MatAnalysisService {
         return null;
     }
 
+    /**
+     * Builds the MAT process invocation for analysis report generation.
+     *
+     * @param parseScript resolved MAT parse script path
+     * @param heapDumpPath target heap dump path
+     * @param heapArg MAT JVM args separator (typically {@code -vmargs})
+     * @param xmxArg MAT max heap argument (for example {@code -Xmx4096m})
+     */
     ProcessBuilder buildMatProcessBuilder(Path parseScript, Path heapDumpPath, String heapArg, String xmxArg) {
         List<String> command = new ArrayList<>();
         String script = parseScript.toString();
-        String lowerScript = script.toLowerCase(Locale.ROOT);
-
-        if (isWindows() && (lowerScript.endsWith(".bat") || lowerScript.endsWith(".cmd"))) {
-            command.add("cmd");
-            command.add("/c");
-        }
 
         command.add(script);
         command.add(heapDumpPath.toAbsolutePath().toString());

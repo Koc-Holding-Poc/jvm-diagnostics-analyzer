@@ -1,6 +1,7 @@
 package com.heapanalyzer.service;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -15,6 +16,7 @@ class MatAnalysisServiceTest {
 
     @TempDir
     Path tempDir;
+    private String originalOsName;
 
     @Test
     void resolveParseScript_windowsPrefersBat() throws Exception {
@@ -23,17 +25,13 @@ class MatAnalysisServiceTest {
         Files.writeString(bat, "echo test");
         Files.writeString(tempDir.resolve("ParseHeapDump.sh"), "echo test");
 
-        String originalOs = System.getProperty("os.name");
-        try {
-            System.setProperty("os.name", "Windows 11");
+        originalOsName = System.getProperty("os.name");
+        System.setProperty("os.name", "Windows 11");
 
-            Path resolved = service.resolveParseScript(tempDir);
+        Path resolved = service.resolveParseScript(tempDir);
 
-            assertNotNull(resolved);
-            assertEquals(bat, resolved);
-        } finally {
-            restoreOsName(originalOs);
-        }
+        assertNotNull(resolved);
+        assertEquals(bat, resolved);
     }
 
     @Test
@@ -42,45 +40,38 @@ class MatAnalysisServiceTest {
         Path sh = tempDir.resolve("ParseHeapDump.sh");
         Files.writeString(sh, "echo test");
 
-        String originalOs = System.getProperty("os.name");
-        try {
-            System.setProperty("os.name", "Linux");
+        originalOsName = System.getProperty("os.name");
+        System.setProperty("os.name", "Linux");
 
-            Path resolved = service.resolveParseScript(tempDir);
+        Path resolved = service.resolveParseScript(tempDir);
 
-            assertNotNull(resolved);
-            assertEquals(sh, resolved);
-        } finally {
-            restoreOsName(originalOs);
-        }
+        assertNotNull(resolved);
+        assertEquals(sh, resolved);
     }
 
     @Test
-    void buildMatProcessBuilder_windowsBatWrapsWithCmd() {
+    void buildMatProcessBuilder_windowsBatStartsFromScript() {
         MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", mock(MatDownloadService.class));
         Path heapDump = tempDir.resolve("sample.hprof");
         Path bat = tempDir.resolve("ParseHeapDump.bat");
 
-        String originalOs = System.getProperty("os.name");
-        try {
-            System.setProperty("os.name", "Windows Server 2022");
+        originalOsName = System.getProperty("os.name");
+        System.setProperty("os.name", "Windows Server 2022");
 
-            ProcessBuilder pb = service.buildMatProcessBuilder(bat, heapDump, "-vmargs", "-Xmx2g");
+        ProcessBuilder pb = service.buildMatProcessBuilder(bat, heapDump, "-vmargs", "-Xmx2g");
 
-            assertTrue(pb.command().size() >= 8);
-            assertEquals("cmd", pb.command().get(0));
-            assertEquals("/c", pb.command().get(1));
-            assertEquals(bat.toString(), pb.command().get(2));
-        } finally {
-            restoreOsName(originalOs);
-        }
+        assertTrue(pb.command().size() >= 6);
+        assertEquals(bat.toString(), pb.command().get(0));
+        assertEquals(heapDump.toAbsolutePath().toString(), pb.command().get(1));
     }
 
-    private void restoreOsName(String originalOs) {
-        if (originalOs == null) {
+    @AfterEach
+    void restoreOsName() {
+        if (originalOsName == null) {
             System.clearProperty("os.name");
             return;
         }
-        System.setProperty("os.name", originalOs);
+        System.setProperty("os.name", originalOsName);
+        originalOsName = null;
     }
 }
