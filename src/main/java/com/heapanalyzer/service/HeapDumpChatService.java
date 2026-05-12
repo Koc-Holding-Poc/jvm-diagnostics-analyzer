@@ -35,6 +35,7 @@ import java.util.Map;
 public class HeapDumpChatService {
 
     private static final Logger log = LoggerFactory.getLogger(HeapDumpChatService.class);
+    private static final String CHAT_MEMORY_CONVERSATION_ID = "chat_memory_conversation_id";
 
     static final String SYSTEM_PROMPT = """
             You are an expert JVM Performance Engineer. You help users analyze heap dump files
@@ -131,9 +132,9 @@ public class HeapDumpChatService {
                     .user(userMessage)
                     .tools(heapDumpMcpTools)
                     .toolContext(Map.of("sessionId", sessionId))
-                    .advisors(MessageChatMemoryAdvisor.builder(chatMemory)
-                            .conversationId(sessionId)
-                            .build());
+                    .advisors(advisorSpec -> advisorSpec
+                            .param(CHAT_MEMORY_CONVERSATION_ID, sessionId)
+                            .advisors(MessageChatMemoryAdvisor.builder(chatMemory).build()));
 
             StringBuilder fullResponse = new StringBuilder();
 
