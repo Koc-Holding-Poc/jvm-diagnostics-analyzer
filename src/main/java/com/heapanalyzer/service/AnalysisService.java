@@ -29,6 +29,9 @@ public class AnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
 
+    /** Interval at which the registry eviction job fires (30 minutes). */
+    private static final long EVICTION_INTERVAL_MS = 30 * 60 * 1_000L;
+
     private final Map<String, AnalysisState> analysisRegistry = new ConcurrentHashMap<>();
     private final MatAnalysisService matAnalysisService;
     private final ThreadDumpAnalysisService threadDumpAnalysisService;
@@ -194,7 +197,7 @@ public class AnalysisService {
      * that are older than {@code app.async.registry-eviction-hours} (default 2 hours).
      * Runs every 30 minutes.
      */
-    @Scheduled(fixedRate = 1_800_000)
+    @Scheduled(fixedRate = EVICTION_INTERVAL_MS)
     public void evictStaleRegistryEntries() {
         Instant cutoff = Instant.now().minus(Duration.ofHours(registryEvictionHours));
         analysisRegistry.values().stream()

@@ -6,7 +6,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -23,6 +22,16 @@ import java.util.zip.ZipFile;
 final class MatReportUtils {
 
     private MatReportUtils() {}
+
+    // Pre-compiled HTML stripping patterns.
+    // Using negative-lookahead (`(?!...)`) instead of `(?s).*?` prevents
+    // catastrophic backtracking (ReDoS) on adversarial HTML content.
+    private static final Pattern SCRIPT_PATTERN =
+            Pattern.compile("<script[^>]*>(?:(?!</script>)[\\s\\S])*</script>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STYLE_PATTERN =
+            Pattern.compile("<style[^>]*>(?:(?!</style>)[\\s\\S])*</style>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern COMMENT_PATTERN =
+            Pattern.compile("<!--(?:(?!-->)[\\s\\S])*-->");
 
     // ========================== ZIP Utilities ==========================
 
@@ -76,10 +85,9 @@ final class MatReportUtils {
      * structure and removing noise (scripts, styles, HTML comments).
      */
     static String htmlToText(String html) {
-        return html
-                .replaceAll("(?s)<script[^>]*>.*?</script>", "")
-                .replaceAll("(?s)<style[^>]*>.*?</style>", "")
-                .replaceAll("(?s)<!--.*?-->", "")
+        return SCRIPT_PATTERN.matcher(html).replaceAll("")
+                .transform(s -> STYLE_PATTERN.matcher(s).replaceAll(""))
+                .transform(s -> COMMENT_PATTERN.matcher(s).replaceAll(""))
                 // Preserve table column boundaries
                 .replaceAll("</th>\\s*<th", "  |  </th><th")
                 .replaceAll("</td>\\s*<td", "  |  </td><td")
@@ -151,6 +159,6 @@ final class MatReportUtils {
     /** Truncates {@code text} to at most {@code maxChars} characters. */
     static String truncate(String text, int maxChars) {
         if (text.length() <= maxChars) return text;
-        return text.substring(0, maxChars) + "\n[... truncated ...]";
+        return text.substring(0, maxChars) + "\n[... truncated at " + maxChars + " chars ...]";
     }
 }
