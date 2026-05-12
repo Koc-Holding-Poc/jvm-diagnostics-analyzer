@@ -30,6 +30,7 @@ public class McpSessionManager {
 
     private final Map<String, HeapDumpSession> sessions = new ConcurrentHashMap<>();
     private final MatAnalysisService matAnalysisService;
+    private final McpLogService mcpLogService;
     private final long sessionTimeoutMinutes;
 
     /** Only one active session at a time for simplicity. */
@@ -37,8 +38,10 @@ public class McpSessionManager {
 
     public McpSessionManager(
             MatAnalysisService matAnalysisService,
+            McpLogService mcpLogService,
             @Value("${app.mcp.session-timeout-minutes:120}") long sessionTimeoutMinutes) {
         this.matAnalysisService = matAnalysisService;
+        this.mcpLogService = mcpLogService;
         this.sessionTimeoutMinutes = sessionTimeoutMinutes;
     }
 
@@ -103,6 +106,7 @@ public class McpSessionManager {
         }
 
         log.info("[MCP] Closing session {} ({})", sessionId, session.getFileName());
+        mcpLogService.clearSession(sessionId);
         cleanupSessionFiles(session);
     }
 

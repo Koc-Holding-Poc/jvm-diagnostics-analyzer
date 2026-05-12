@@ -1,11 +1,12 @@
 package com.heapanalyzer.service;
 
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -178,7 +179,7 @@ public class SpringAiService {
         log.info("Configuring AI client: baseUrl={}, model={}, temperature={}, trustInsecureCerts={}",
                 baseUrl, model, temperature, trustInsecure);
 
-        var apiBuilder = OpenAiApi.builder()
+        var clientBuilder = OpenAIOkHttpClient.builder()
                 .apiKey(apiKey)
                 .baseUrl(baseUrl);
 
@@ -194,33 +195,17 @@ public class SpringAiService {
                 var sslContext = javax.net.ssl.SSLContext.getInstance("TLS");
                 sslContext.init(null, new javax.net.ssl.TrustManager[]{trustAll}, new java.security.SecureRandom());
 
-                var httpClient = java.net.http.HttpClient.newBuilder()
-                        .sslContext(sslContext)
-                        .build();
-
-                var requestFactory = new org.springframework.http.client.JdkClientHttpRequestFactory(httpClient);
-                var restClientBuilder = org.springframework.web.client.RestClient.builder()
-                        .requestFactory(requestFactory);
-
-                apiBuilder.restClientBuilder(restClientBuilder);
-
-                var nettySslContext = io.netty.handler.ssl.SslContextBuilder.forClient()
-                        .trustManager(io.netty.handler.ssl.util.InsecureTrustManagerFactory.INSTANCE)
-                        .build();
-                var reactorHttpClient = reactor.netty.http.client.HttpClient.create()
-                        .secure(t -> t.sslContext(nettySslContext));
-                var clientConnector = new org.springframework.http.client.reactive.ReactorClientHttpConnector(reactorHttpClient);
-                var webClientBuilder = org.springframework.web.reactive.function.client.WebClient.builder()
-                        .clientConnector(clientConnector);
-
-                apiBuilder.webClientBuilder(webClientBuilder);
+                clientBuilder
+                        .sslSocketFactory(sslContext.getSocketFactory())
+                        .trustManager(trustAll)
+                        .hostnameVerifier((hostname, session) -> true);
             } catch (Exception e) {
                 log.error("Failed to configure insecure TLS: {}", e.getMessage());
                 throw new RuntimeException("Failed to configure insecure TLS", e);
             }
         }
 
-        OpenAiApi openAiApi = apiBuilder.build();
+        OpenAIClient openAIClient = clientBuilder.build();
 
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .model(model)
@@ -228,8 +213,8 @@ public class SpringAiService {
                 .build();
 
         OpenAiChatModel chatModel = OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(options)
+                .openAiClient(openAIClient)
+                .options(options)
                 .build();
 
         this.chatClient = ChatClient.builder(chatModel).build();

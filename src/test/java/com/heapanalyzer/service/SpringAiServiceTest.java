@@ -3,14 +3,10 @@ package com.heapanalyzer.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -44,15 +40,19 @@ class SpringAiServiceTest {
     @Test
     void init_shouldReconfigureWhenConfigured() {
         when(configService.isConfigured()).thenReturn(true);
-        when(configService.getApiKey()).thenReturn("sk-test");
-        when(configService.getBaseUrl()).thenReturn("https://api.example.com");
-        when(configService.getModel()).thenReturn("test-model");
-        when(configService.getTemperature()).thenReturn(0.5);
-        when(configService.isTrustInsecureCerts()).thenReturn(false);
 
-        springAiService.init();
+        // Use a spy to intercept reconfigure() so we don't build a real HTTP client
+        // (the OpenAI Java SDK validates credentials at build time).
+        SpringAiService spy = Mockito.spy(new SpringAiService(configService));
+        Mockito.doAnswer(invocation -> {
+            ReflectionTestUtils.setField(spy, "chatClient", chatClient);
+            return null;
+        }).when(spy).reconfigure();
 
-        assertTrue(springAiService.isReady());
+        spy.init();
+
+        Mockito.verify(spy).reconfigure();
+        assertTrue(spy.isReady());
     }
 
     @Test

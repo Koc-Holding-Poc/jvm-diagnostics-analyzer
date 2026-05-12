@@ -16,6 +16,7 @@ public class AnalysisState {
     private volatile String aiResponse;
     private volatile String errorMessage;
     private final Instant createdAt;
+    private volatile Instant completedAt;
     private volatile long fileSizeBytes;
 
     public AnalysisState(String id, String fileName, AnalysisType analysisType) {
@@ -60,6 +61,10 @@ public class AnalysisState {
         return createdAt;
     }
 
+    public Instant getCompletedAt() {
+        return completedAt;
+    }
+
     public long getFileSizeBytes() {
         return fileSizeBytes;
     }
@@ -68,6 +73,9 @@ public class AnalysisState {
 
     public void setStatus(AnalysisStatus status) {
         this.status = status;
+        if (status == AnalysisStatus.COMPLETED || status == AnalysisStatus.FAILED) {
+            this.completedAt = Instant.now();
+        }
     }
 
     public void setStaticReport(String staticReport) {

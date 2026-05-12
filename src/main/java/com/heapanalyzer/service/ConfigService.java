@@ -8,7 +8,9 @@ import jakarta.annotation.PostConstruct;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * Manages application configuration persisted to ~/.jvm-diagnostics/config.properties.
@@ -141,6 +143,14 @@ public class ConfigService {
             Files.createDirectories(configFile.getParent());
             try (OutputStream os = Files.newOutputStream(configFile)) {
                 properties.store(os, "JVM Diagnostics Analyzer — AI Configuration");
+            }
+            // Restrict config file to owner read/write only (chmod 600) to protect the API key.
+            // This is a best-effort operation; non-POSIX systems (e.g. Windows) are silently skipped.
+            try {
+                Files.setPosixFilePermissions(configFile,
+                        Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            } catch (UnsupportedOperationException ignored) {
+                // Not a POSIX filesystem — permissions cannot be set
             }
             log.info("Config saved to {}", configFile);
         } catch (IOException e) {

@@ -8,14 +8,11 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -469,91 +466,34 @@ public class MatQueryService {
     // ========================== Utility methods ==========================
 
     private Path findZip(Path directory, String glob) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
-            for (Path p : stream) return p;
-        }
-        return null;
+        return MatReportUtils.findZip(directory, glob);
     }
 
     private ZipEntry findEntry(ZipFile zip, String name) {
-        ZipEntry entry = zip.getEntry(name);
-        if (entry != null) return entry;
-        return zip.stream()
-                .filter(e -> e.getName().endsWith("/" + name) && !e.isDirectory())
-                .findFirst().orElse(null);
+        return MatReportUtils.findEntry(zip, name);
     }
 
     private ZipEntry findEntryContaining(ZipFile zip, String keyword) {
-        return zip.stream()
-                .filter(e -> !e.isDirectory() && e.getName().endsWith(".html"))
-                .filter(e -> e.getName().toLowerCase().contains(keyword.toLowerCase()))
-                .findFirst().orElse(null);
+        return MatReportUtils.findEntryContaining(zip, keyword);
     }
 
     private String readEntry(ZipFile zip, ZipEntry entry) throws IOException {
-        try (var is = zip.getInputStream(entry)) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        return MatReportUtils.readEntry(zip, entry);
     }
 
     private String htmlToText(String html) {
-        return html
-                .replaceAll("(?s)<script[^>]*>.*?</script>", "")
-                .replaceAll("(?s)<style[^>]*>.*?</style>", "")
-                .replaceAll("(?s)<!--.*?-->", "")
-                .replaceAll("</th>\\s*<th", "  |  </th><th")
-                .replaceAll("</td>\\s*<td", "  |  </td><td")
-                .replaceAll("<br\\s*/?>", "\n")
-                .replaceAll("</p>", "\n")
-                .replaceAll("</tr>", "\n")
-                .replaceAll("</li>", "\n")
-                .replaceAll("</h[1-6]>", "\n")
-                .replaceAll("<[^>]+>", " ")
-                .replaceAll("&nbsp;", " ")
-                .replaceAll("&amp;", "&")
-                .replaceAll("&lt;", "<")
-                .replaceAll("&gt;", ">")
-                .replaceAll("&quot;", "\"")
-                .replaceAll("&#\\d+;", "")
-                .replaceAll("[ \\t]+", " ")
-                .replaceAll("\n[ \\t]+", "\n")
-                .replaceAll("\n{3,}", "\n\n")
-                .trim();
+        return MatReportUtils.htmlToText(html);
     }
 
     private String filterJvmProperties(String text) {
-        Set<String> relevantKeys = Set.of(
-                "sun.java.command", "java.vm.name", "java.version",
-                "java.runtime.version", "sun.arch.data.model", "os.name", "os.arch"
-        );
-        StringBuilder sb = new StringBuilder();
-        for (String line : text.split("\n")) {
-            String trimmed = line.trim();
-            if (trimmed.isBlank()) continue;
-            boolean relevant = relevantKeys.stream().anyMatch(trimmed::contains)
-                    || JVM_FLAG_PATTERN.matcher(trimmed).matches()
-                    || trimmed.startsWith("-");
-            if (relevant) sb.append(trimmed).append("\n");
-        }
-        return sb.isEmpty() ? text.lines().limit(10).collect(Collectors.joining("\n")) : sb.toString();
+        return MatReportUtils.filterJvmProperties(text, JVM_FLAG_PATTERN);
     }
 
     private String truncateLines(String text, int maxLines) {
-        String[] lines = text.split("\n");
-        StringBuilder sb = new StringBuilder();
-        int count = 0;
-        for (String line : lines) {
-            if (!line.isBlank()) {
-                sb.append(line.trim()).append("\n");
-                count++;
-                if (count >= maxLines) break;
-            }
-        }
-        return sb.toString();
+        return MatReportUtils.keepTopLines(text, maxLines);
     }
 
     private String truncate(String text, int maxChars) {
-        if (text.length() <= maxChars) return text;
-        return text.substring(0, maxChars) + "\n[... truncated at " + maxChars + " chars ...]";
+        return MatReportUtils.truncate(text, maxChars);
     }
 }

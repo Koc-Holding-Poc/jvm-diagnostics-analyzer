@@ -5,13 +5,17 @@ import com.heapanalyzer.model.AnalysisStatus;
 import com.heapanalyzer.model.AnalysisType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,15 +34,18 @@ public class AnalysisService {
     private final ThreadDumpAnalysisService threadDumpAnalysisService;
     private final GcLogAnalysisService gcLogAnalysisService;
     private final SpringAiService springAiService;
+    private final long registryEvictionHours;
 
     public AnalysisService(MatAnalysisService matAnalysisService,
                            ThreadDumpAnalysisService threadDumpAnalysisService,
                            GcLogAnalysisService gcLogAnalysisService,
-                           SpringAiService springAiService) {
+                           SpringAiService springAiService,
+                           @Value("${app.async.registry-eviction-hours:2}") long registryEvictionHours) {
         this.matAnalysisService = matAnalysisService;
         this.threadDumpAnalysisService = threadDumpAnalysisService;
         this.gcLogAnalysisService = gcLogAnalysisService;
         this.springAiService = springAiService;
+        this.registryEvictionHours = registryEvictionHours;
     }
 
     /**
@@ -180,6 +187,24 @@ public class AnalysisService {
         } finally {
             cleanupAnalysisFiles(analysisId, filePath);
         }
+    }
+
+    /**
+     * Periodically evicts completed or failed analysis entries from the in-memory registry
+     * that are older than {@code app.async.registry-eviction-hours} (default 2 hours).
+     * Runs every 30 minutes.
+     */
+    @Scheduled(fixedRate = 1_800_000)
+    public void evictStaleRegistryEntries() {
+        Instant cutoff = Instant.now().minus(Duration.ofHours(registryEvictionHours));
+        analysisRegistry.values().stream()
+                .filter(s -> (s.getStatus() == AnalysisStatus.COMPLETED || s.getStatus() == AnalysisStatus.FAILED)
+                        && s.getCompletedAt() != null
+                        && s.getCompletedAt().isBefore(cutoff))
+                .forEach(s -> {
+                    analysisRegistry.remove(s.getId());
+                    log.debug("Evicted stale analysis entry {} (completed at {})", s.getId(), s.getCompletedAt());
+                });
     }
 
     /**

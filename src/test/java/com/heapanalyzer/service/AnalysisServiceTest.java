@@ -40,7 +40,8 @@ class AnalysisServiceTest {
     void setUp() {
         analysisService = new AnalysisService(
                 matAnalysisService, threadDumpAnalysisService,
-                gcLogAnalysisService, springAiService
+                gcLogAnalysisService, springAiService,
+                2L  // 2-hour eviction TTL for tests
         );
     }
 
