@@ -147,11 +147,11 @@ public class MatAnalysisService {
         }
 
         String effectiveMatHome = getMatHome();
-        Path parseScript = Paths.get(effectiveMatHome, "ParseHeapDump.sh");
+        Path parseScript = resolveParseScript(Paths.get(effectiveMatHome));
 
-        if (!Files.isExecutable(parseScript)) {
-            throw new IOException("MAT ParseHeapDump.sh not found or not executable at: " + parseScript
-                    + ". Make sure Eclipse MAT is installed at " + effectiveMatHome);
+        if (parseScript == null || !Files.exists(parseScript) || (!isWindows() && !Files.isExecutable(parseScript))) {
+            throw new IOException("MAT parse script not found or not executable at MAT home: " + effectiveMatHome
+                    + " (expected ParseHeapDump.sh on Unix/macOS or ParseHeapDump.bat/.cmd on Windows)");
         }
 
         log.info("Starting MAT analysis on {} (timeout: {} min)", heapDumpPath, timeoutMinutes);
@@ -160,14 +160,7 @@ public class MatAnalysisService {
         String xmxArg = "-Xmx" + calculateMatHeap(Files.size(heapDumpPath));
 
         // Run both Leak Suspects and Overview reports in a single MAT invocation
-        ProcessBuilder pb = new ProcessBuilder(
-                parseScript.toString(),
-                heapDumpPath.toAbsolutePath().toString(),
-                "org.eclipse.mat.api:suspects",
-                "org.eclipse.mat.api:overview",
-                heapArg,
-                xmxArg
-        );
+        ProcessBuilder pb = buildMatProcessBuilder(parseScript, heapDumpPath, heapArg, xmxArg);
         pb.directory(heapDumpPath.getParent().toFile());
         pb.redirectErrorStream(true);
 
@@ -192,6 +185,58 @@ public class MatAnalysisService {
         }
 
         return buildStructuredReport(heapDumpPath.getParent());
+    }
+
+    /**
+     * Resolves the MAT launcher script from MAT home.
+     * On Windows, prefers {@code ParseHeapDump.bat}, then {@code ParseHeapDump.cmd}.
+     * On Unix/macOS, uses {@code ParseHeapDump.sh}.
+     *
+     * @return script path when found, otherwise {@code null}
+     */
+    Path resolveParseScript(Path matHome) {
+        if (isWindows()) {
+            Path bat = matHome.resolve("ParseHeapDump.bat");
+            if (Files.exists(bat)) {
+                return bat;
+            }
+            Path cmd = matHome.resolve("ParseHeapDump.cmd");
+            if (Files.exists(cmd)) {
+                return cmd;
+            }
+        }
+
+        Path sh = matHome.resolve("ParseHeapDump.sh");
+        if (Files.exists(sh)) {
+            return sh;
+        }
+
+        return null;
+    }
+
+    /**
+     * Builds the MAT process invocation for analysis report generation.
+     *
+     * @param parseScript resolved MAT parse script path
+     * @param heapDumpPath target heap dump path
+     * @param heapArg MAT JVM args separator (typically {@code -vmargs})
+     * @param xmxArg MAT max heap argument (for example {@code -Xmx4096m})
+     */
+    ProcessBuilder buildMatProcessBuilder(Path parseScript, Path heapDumpPath, String heapArg, String xmxArg) {
+        List<String> command = new ArrayList<>();
+        String script = parseScript.toString();
+
+        command.add(script);
+        command.add(heapDumpPath.toAbsolutePath().toString());
+        command.add("org.eclipse.mat.api:suspects");
+        command.add("org.eclipse.mat.api:overview");
+        command.add(heapArg);
+        command.add(xmxArg);
+        return new ProcessBuilder(command);
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
     // ========================== Report Builder ==========================
