@@ -31,6 +31,10 @@
     --yk-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.35);
     --yk-surface: rgba(255, 255, 255, 0.9);
     --yk-surface-border: rgba(148, 163, 184, 0.22);
+    --yk-gradient-accent: #e7efff;
+    --yk-nav-gradient-start: #002f5e;
+    --yk-nav-gradient-end: #004990;
+    --yk-footer-gradient-start: #0b2341;
 }
 
 /* ========================== Reset & Base ========================== */
@@ -42,7 +46,8 @@
 
 body {
     font-family: 'Ubuntu', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: radial-gradient(circle at 100% 0%, #eff6ff 0%, var(--yk-bg-light) 35%);
+    /* keep gradient fade mostly above fold while preserving strong text contrast area */
+    background: radial-gradient(circle at 100% 0%, var(--yk-gradient-accent) 0%, var(--yk-bg-light) 35%);
     color: var(--yk-text-primary);
     min-height: 100vh;
     display: flex;
@@ -57,7 +62,7 @@ pre {
 
 /* ========================== Navigation ========================== */
 .nav {
-    background: linear-gradient(120deg, var(--yk-blue-dark), var(--yk-blue));
+    background: linear-gradient(120deg, var(--yk-nav-gradient-start), var(--yk-nav-gradient-end));
     padding: 0 1.5rem;
     display: flex;
     align-items: center;
@@ -158,7 +163,7 @@ pre {
     padding: 2rem;
     flex-grow: 1;
     width: 100%;
-    max-width: 1200px;
+    max-width: 1180px;
 }
 
 /* ========================== Drop Zone ========================== */
@@ -747,7 +752,7 @@ pre {
 /* ========================== Footer ========================== */
 .footer {
     margin-top: auto;
-    background: linear-gradient(140deg, #0b2341, var(--yk-blue-dark));
+    background: linear-gradient(140deg, var(--yk-footer-gradient-start), var(--yk-blue-dark));
     color: rgba(255, 255, 255, 0.6);
     text-align: center;
     padding: 1.5rem 2rem;
@@ -766,7 +771,7 @@ pre {
 /* ========================== Responsive ========================== */
 @media (max-width: 768px) {
     .nav {
-        height: auto;
+        min-height: auto;
         flex-direction: column;
         align-items: flex-start;
         gap: 0.75rem;
@@ -778,7 +783,21 @@ pre {
         gap: 0.4rem;
         overflow-x: auto;
         padding-bottom: 0.2rem;
+        padding-right: 1rem;
         scrollbar-width: thin;
+        position: relative;
+    }
+
+    .nav-links::after {
+        content: "";
+        position: sticky;
+        right: 0;
+        width: 28px;
+        min-width: 28px;
+        height: 100%;
+        margin-left: auto;
+        background: linear-gradient(90deg, rgba(0, 73, 144, 0), rgba(0, 47, 94, 0.85));
+        pointer-events: none;
     }
 
     .page-header {
@@ -842,7 +861,7 @@ summary:focus-visible {
     *::before,
     *::after {
         animation: none !important;
-        transition-duration: 0.01ms !important;
+        transition: none !important;
         scroll-behavior: auto !important;
     }
 }
