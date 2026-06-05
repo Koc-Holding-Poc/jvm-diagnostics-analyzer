@@ -25,6 +25,12 @@
     --yk-shadow-hover: 0 8px 30px rgba(0, 73, 144, 0.15);
     --yk-radius: 12px;
     --yk-radius-sm: 8px;
+    --yk-radius-lg: 16px;
+    --yk-green-dark: #047857;
+    --yk-red-light: #fee2e2;
+    --yk-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.35);
+    --yk-surface: rgba(255, 255, 255, 0.9);
+    --yk-surface-border: rgba(148, 163, 184, 0.22);
 }
 
 /* ========================== Reset & Base ========================== */
@@ -36,11 +42,12 @@
 
 body {
     font-family: 'Ubuntu', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--yk-bg-light);
+    background: radial-gradient(circle at 100% 0%, #eff6ff 0%, var(--yk-bg-light) 35%);
     color: var(--yk-text-primary);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    line-height: 1.55;
 }
 
 code,
@@ -50,16 +57,17 @@ pre {
 
 /* ========================== Navigation ========================== */
 .nav {
-    background: var(--yk-blue);
-    padding: 0 2rem;
+    background: linear-gradient(120deg, var(--yk-blue-dark), var(--yk-blue));
+    padding: 0 1.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 64px;
+    min-height: 64px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 12px 24px rgba(2, 6, 23, 0.12);
 }
 
 .nav-brand {
@@ -107,12 +115,14 @@ pre {
     padding: 8px 16px;
     border-radius: 6px;
     transition: all 0.2s ease;
+    border: 1px solid transparent;
 }
 
 .nav-links a:hover,
 .nav-links a.active {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.18);
     color: var(--yk-white);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* ========================== Page Header ========================== */
@@ -120,6 +130,7 @@ pre {
     background: linear-gradient(135deg, var(--yk-blue) 0%, var(--yk-blue-dark) 100%);
     padding: 2.5rem 2rem;
     color: var(--yk-white);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .page-header-content {
@@ -147,11 +158,12 @@ pre {
     padding: 2rem;
     flex-grow: 1;
     width: 100%;
+    max-width: 1200px;
 }
 
 /* ========================== Drop Zone ========================== */
 .drop-zone {
-    background: var(--yk-white);
+    background: var(--yk-surface);
     border: 2px dashed var(--yk-border);
     border-radius: var(--yk-radius);
     padding: 3rem 2rem;
@@ -159,6 +171,7 @@ pre {
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: var(--yk-shadow);
+    border-color: var(--yk-surface-border);
 }
 
 .drop-zone:hover {
@@ -302,8 +315,8 @@ pre {
 }
 
 .pipeline-card {
-    background: var(--yk-white);
-    border-radius: var(--yk-radius);
+    background: var(--yk-surface);
+    border-radius: var(--yk-radius-lg);
     padding: 1.5rem;
     box-shadow: var(--yk-shadow);
     border: 1px solid var(--yk-border);
@@ -425,8 +438,8 @@ pre {
 }
 
 .error-card {
-    background: var(--yk-white);
-    border-radius: var(--yk-radius);
+    background: var(--yk-surface);
+    border-radius: var(--yk-radius-lg);
     padding: 1.25rem;
     box-shadow: var(--yk-shadow);
     border: 1px solid var(--yk-red);
@@ -469,8 +482,8 @@ pre {
 }
 
 .report-toggle {
-    background: var(--yk-white);
-    border-radius: var(--yk-radius);
+    background: var(--yk-surface);
+    border-radius: var(--yk-radius-lg);
     box-shadow: var(--yk-shadow);
     border: 1px solid var(--yk-border);
     overflow: hidden;
@@ -545,8 +558,8 @@ pre {
 }
 
 .results-card {
-    background: var(--yk-white);
-    border-radius: var(--yk-radius);
+    background: var(--yk-surface);
+    border-radius: var(--yk-radius-lg);
     box-shadow: var(--yk-shadow);
     border: 1px solid var(--yk-border);
     border-top: 4px solid var(--yk-green);
@@ -734,7 +747,7 @@ pre {
 /* ========================== Footer ========================== */
 .footer {
     margin-top: auto;
-    background: var(--yk-blue-dark);
+    background: linear-gradient(140deg, #0b2341, var(--yk-blue-dark));
     color: rgba(255, 255, 255, 0.6);
     text-align: center;
     padding: 1.5rem 2rem;
@@ -752,8 +765,20 @@ pre {
 
 /* ========================== Responsive ========================== */
 @media (max-width: 768px) {
+    .nav {
+        height: auto;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.85rem 1rem;
+    }
+
     .nav-links {
-        display: none;
+        width: 100%;
+        gap: 0.4rem;
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
+        scrollbar-width: thin;
     }
 
     .page-header {
@@ -762,5 +787,62 @@ pre {
 
     .main-container {
         padding: 1rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .main-container,
+    .page-header-content {
+        max-width: 1180px;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+    .main-container,
+    .page-header-content {
+        max-width: 960px;
+    }
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+    outline: none;
+    box-shadow: var(--yk-focus-ring);
+}
+
+.status-msg,
+.alert-success {
+    border-radius: var(--yk-radius-sm);
+}
+
+.type-badge,
+.status-pill,
+.log-badge,
+.connection-status {
+    font-weight: 700;
+}
+
+.state-empty,
+.state-loading,
+.state-error {
+    border: 1px dashed var(--yk-border);
+    border-radius: var(--yk-radius);
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--yk-text-secondary);
+    background: var(--yk-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

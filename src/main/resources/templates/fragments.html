@@ -2,7 +2,7 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 
 <!-- ========================== Navigation Fragment ========================== -->
-<nav th:fragment="nav(activePage)" class="nav">
+<nav th:fragment="nav(activePage)" class="nav" aria-label="Primary">
     <a href="/" class="nav-brand">
         <div class="nav-brand-icon">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -23,7 +23,7 @@
 <!-- ========================== Footer Fragment ========================== -->
 <footer th:fragment="footer" class="footer">
     JVM Diagnostics Analyzer v2.0.0 &middot; Spring Boot + Eclipse MAT + Spring AI &middot;
-    <a href="https://github.com/bishoku/jvm-diagnostics-analyzer" target="_blank">GitHub</a>
+    <a href="https://github.com/bishoku/jvm-diagnostics-analyzer" target="_blank" rel="noopener noreferrer">GitHub</a>
 </footer>
 
 </html>
