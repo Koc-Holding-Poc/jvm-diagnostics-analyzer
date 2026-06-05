@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a defect in analysis behavior, endpoints, UI flow, or CI.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken and what did you expect?
+      placeholder: A concise description of the bug and expected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide deterministic steps.
+      placeholder: |
+        1. Start app with ...
+        2. Upload file ...
+        3. Call endpoint ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics input
+      description: Attach or describe heap dump/thread dump/GC log sample characteristics.
+      placeholder: File type, size, and redacted snippets/logs if available.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and stack traces
+      description: Paste relevant server logs, stack traces, or CI output.
+      render: shell
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Java version, OS, and run mode (Docker/local).
+      placeholder: "Java 25, macOS, local mvn spring-boot:run"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for existing issues.
+          required: true
+        - label: I included enough detail to reproduce.
+          required: true

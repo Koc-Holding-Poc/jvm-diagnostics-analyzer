@@ -330,6 +330,12 @@ kubectl cp <pod>:/tmp/heapdump.hprof ./heapdump.hprof
 
 ---
 
+## Contributing
+
+Contributions are welcome. Please follow the workflow and checks documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
 ## License
 
 [MIT](LICENSE)

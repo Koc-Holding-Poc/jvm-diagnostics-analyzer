@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a new capability or improvement.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user pain does this solve?
+      placeholder: Describe the current limitation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the preferred design and behavior.
+      placeholder: Include API, service, and UI expectations when relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impacted areas
+      description: Which parts of the system should change?
+      placeholder: |
+        - AnalysisType enum
+        - AnalysisService pipeline
+        - AnalysisController endpoints
+        - Templates/CSS
+        - Tests
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches and why they are less suitable.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I reviewed existing issues and discussions.
+          required: true
+        - label: I can help with implementation or review feedback.
+          required: false
