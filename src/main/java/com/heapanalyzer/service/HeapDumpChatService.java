@@ -131,9 +131,9 @@ public class HeapDumpChatService {
                     .user(userMessage)
                     .tools(heapDumpMcpTools)
                     .toolContext(Map.of("sessionId", sessionId))
-                    .advisors(MessageChatMemoryAdvisor.builder(chatMemory)
-                            .conversationId(sessionId)
-                            .build());
+                    .advisors(a -> a
+                            .param("chat_memory_conversation_id", sessionId)
+                            .advisors(MessageChatMemoryAdvisor.builder(chatMemory).build()));
 
             StringBuilder fullResponse = new StringBuilder();
 
