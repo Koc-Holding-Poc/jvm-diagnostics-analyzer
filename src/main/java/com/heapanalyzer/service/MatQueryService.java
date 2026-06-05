@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -32,10 +31,6 @@ import java.util.zip.ZipFile;
 public class MatQueryService {
 
     private static final Logger log = LoggerFactory.getLogger(MatQueryService.class);
-
-    private static final Pattern TABLE_ROW_PATTERN = Pattern.compile(
-            "^\\s*\\d+[.,].*|^.*\\|.*\\|.*$"
-    );
 
     private static final Pattern JVM_FLAG_PATTERN = Pattern.compile(
             "(?i).*(Xmx|Xms|Xss|MaxMetaspace|GC|heap|NewRatio|SurvivorRatio|" +
@@ -366,22 +361,24 @@ public class MatQueryService {
             throws IOException, InterruptedException {
 
         String matHome = matDownloadService.getEffectiveMatHome();
-        Path parseScript = Paths.get(matHome, "ParseHeapDump.sh");
+        Path parseScript = matAnalysisService.resolveParseScript(Paths.get(matHome));
 
-        if (!Files.isExecutable(parseScript)) {
-            throw new IOException("MAT ParseHeapDump.sh not found at: " + parseScript);
+        if (parseScript == null || !Files.exists(parseScript)
+            || (!isWindows() && !Files.isExecutable(parseScript))) {
+            throw new IOException("MAT parse script not found or not executable at MAT home: " + matHome
+                + " (expected ParseHeapDump.sh on Unix/macOS or ParseHeapDump.bat/.cmd on Windows)");
         }
 
         String heapArg = "-vmargs";
         String xmxArg = "-Xmx" + matAnalysisService.calculateMatHeap(Files.size(hprofPath));
 
-        ProcessBuilder pb = new ProcessBuilder(
-                parseScript.toString(),
-                hprofPath.toAbsolutePath().toString(),
-                "-command=" + command,
-                heapArg,
-                xmxArg
-        );
+        List<String> matArgs = new ArrayList<>();
+        matArgs.add(hprofPath.toAbsolutePath().toString());
+        matArgs.add("-command=" + command);
+        matArgs.add(heapArg);
+        matArgs.add(xmxArg);
+
+        ProcessBuilder pb = matAnalysisService.buildMatInvocation(parseScript, matArgs);
         pb.directory(hprofPath.getParent().toFile());
         pb.redirectErrorStream(true);
 
@@ -395,26 +392,32 @@ public class MatQueryService {
             throws IOException, InterruptedException {
 
         String matHome = matDownloadService.getEffectiveMatHome();
-        Path parseScript = Paths.get(matHome, "ParseHeapDump.sh");
+        Path parseScript = matAnalysisService.resolveParseScript(Paths.get(matHome));
 
-        if (!Files.isExecutable(parseScript)) {
-            throw new IOException("MAT ParseHeapDump.sh not found at: " + parseScript);
+        if (parseScript == null || !Files.exists(parseScript)
+                || (!isWindows() && !Files.isExecutable(parseScript))) {
+            throw new IOException("MAT parse script not found or not executable at MAT home: " + matHome
+                    + " (expected ParseHeapDump.sh on Unix/macOS or ParseHeapDump.bat/.cmd on Windows)");
         }
 
         String heapArg = "-vmargs";
         String xmxArg = "-Xmx" + matAnalysisService.calculateMatHeap(Files.size(hprofPath));
 
-        ProcessBuilder pb = new ProcessBuilder(
-                parseScript.toString(),
-                hprofPath.toAbsolutePath().toString(),
-                "-command=oql \"" + query.replace("\"", "\\\"") + "\"",
-                heapArg,
-                xmxArg
-        );
+        List<String> matArgs = new ArrayList<>();
+        matArgs.add(hprofPath.toAbsolutePath().toString());
+        matArgs.add("-command=oql \"" + query.replace("\"", "\\\"") + "\"");
+        matArgs.add(heapArg);
+        matArgs.add(xmxArg);
+
+        ProcessBuilder pb = matAnalysisService.buildMatInvocation(parseScript, matArgs);
         pb.directory(hprofPath.getParent().toFile());
         pb.redirectErrorStream(true);
 
         return executeProcess(pb, "oql");
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
     private String executeProcess(ProcessBuilder pb, String commandName)

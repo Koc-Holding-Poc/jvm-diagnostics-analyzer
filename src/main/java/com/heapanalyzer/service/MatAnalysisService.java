@@ -223,15 +223,29 @@ public class MatAnalysisService {
      * @param xmxArg MAT max heap argument (for example {@code -Xmx4096m})
      */
     ProcessBuilder buildMatProcessBuilder(Path parseScript, Path heapDumpPath, String heapArg, String xmxArg) {
-        List<String> command = new ArrayList<>();
-        String script = parseScript.toString();
+        List<String> matArgs = new ArrayList<>();
+        matArgs.add(heapDumpPath.toAbsolutePath().toString());
+        matArgs.add("org.eclipse.mat.api:suspects");
+        matArgs.add("org.eclipse.mat.api:overview");
+        matArgs.add(heapArg);
+        matArgs.add(xmxArg);
+        return buildMatInvocation(parseScript, matArgs);
+    }
 
-        command.add(script);
-        command.add(heapDumpPath.toAbsolutePath().toString());
-        command.add("org.eclipse.mat.api:suspects");
-        command.add("org.eclipse.mat.api:overview");
-        command.add(heapArg);
-        command.add(xmxArg);
+    /**
+     * Builds a platform-safe MAT launcher invocation.
+     *
+     * <p>On Windows, MAT launchers are batch files and must be invoked via
+     * {@code cmd.exe /c}. On Unix/macOS, scripts are executed directly.</p>
+     */
+    ProcessBuilder buildMatInvocation(Path parseScript, List<String> matArgs) {
+        List<String> command = new ArrayList<>();
+        if (isWindows()) {
+            command.add("cmd.exe");
+            command.add("/c");
+        }
+        command.add(parseScript.toString());
+        command.addAll(matArgs);
         return new ProcessBuilder(command);
     }
 

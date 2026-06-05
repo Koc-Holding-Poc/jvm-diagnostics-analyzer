@@ -60,9 +60,11 @@ class MatAnalysisServiceTest {
 
         ProcessBuilder pb = service.buildMatProcessBuilder(bat, heapDump, "-vmargs", "-Xmx2g");
 
-        assertTrue(pb.command().size() >= 6);
-        assertEquals(bat.toString(), pb.command().get(0));
-        assertEquals(heapDump.toAbsolutePath().toString(), pb.command().get(1));
+        assertTrue(pb.command().size() >= 8);
+        assertEquals("cmd.exe", pb.command().get(0));
+        assertEquals("/c", pb.command().get(1));
+        assertEquals(bat.toString(), pb.command().get(2));
+        assertEquals(heapDump.toAbsolutePath().toString(), pb.command().get(3));
     }
 
     @AfterEach

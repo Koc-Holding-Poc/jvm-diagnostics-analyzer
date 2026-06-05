@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.*;
+import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -270,18 +271,35 @@ public class MatDownloadService {
     private Path resolveParseScript(Path dir) {
         if (!Files.exists(dir)) return null;
 
-        String scriptName = System.getProperty("os.name", "").toLowerCase().contains("win")
-                ? "ParseHeapDump.bat" : "ParseHeapDump.sh";
+        String os = System.getProperty("os.name", "").toLowerCase();
+        String scriptName = os.contains("win") ? "ParseHeapDump.bat" : "ParseHeapDump.sh";
 
         // Direct child
         Path direct = dir.resolve(scriptName);
         if (Files.exists(direct)) return direct;
 
+        if (os.contains("win")) {
+            Path directCmd = dir.resolve("ParseHeapDump.cmd");
+            if (Files.exists(directCmd)) return directCmd;
+        }
+
         // One level down (common after extraction: mat/mat/ParseHeapDump.sh)
         try (var stream = Files.list(dir)) {
             return stream.filter(Files::isDirectory)
-                    .map(sub -> sub.resolve(scriptName))
-                    .filter(Files::exists)
+                    .map(sub -> {
+                        Path candidate = sub.resolve(scriptName);
+                        if (Files.exists(candidate)) {
+                            return candidate;
+                        }
+                        if (os.contains("win")) {
+                            Path cmdCandidate = sub.resolve("ParseHeapDump.cmd");
+                            if (Files.exists(cmdCandidate)) {
+                                return cmdCandidate;
+                            }
+                        }
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
                     .findFirst()
                     .orElse(null);
         } catch (IOException e) {
