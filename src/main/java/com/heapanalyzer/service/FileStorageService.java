@@ -51,25 +51,30 @@ public class FileStorageService {
         Files.createDirectories(targetDir);
 
         String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.isBlank()) {
-            originalFilename = "heap-dump.hprof";
-        } else {
+        String safeExtension = ".hprof";
+        if (originalFilename != null && !originalFilename.isBlank()) {
             Path fileNamePath = Paths.get(originalFilename).getFileName();
-            if (fileNamePath == null) {
-                originalFilename = "heap-dump.hprof";
-            } else {
-                originalFilename = fileNamePath.toString();
+            if (fileNamePath != null) {
+                String basename = fileNamePath.toString();
+                int dot = basename.lastIndexOf('.');
+                if (dot >= 0 && dot < basename.length() - 1) {
+                    String ext = basename.substring(dot).toLowerCase();
+                    if (ext.matches("\\.[a-z0-9]{1,10}")) {
+                        safeExtension = ext;
+                    }
+                }
             }
         }
 
-        Path targetPath = targetDir.resolve(originalFilename);
+        String storedFilename = "upload" + safeExtension;
+        Path targetPath = targetDir.resolve(storedFilename);
 
         // Stream directly to disk — no byte[] buffering
         try (InputStream inputStream = file.getInputStream()) {
             Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
         }
 
-        log.info("Stored file {} ({} bytes) at {}", originalFilename, Files.size(targetPath), targetPath);
+        log.info("Stored file {} ({} bytes) at {}", storedFilename, Files.size(targetPath), targetPath);
         return targetPath;
     }
 }
