@@ -1,0 +1,5 @@
+[0.012s][info][gc] Using G1
+[1.000s][info][gc] GC(0) Pause Young (G1 Evacuation Pause) 900M->300M(1024M) 100.0ms
+[2.000s][info][gc] GC(1) Pause Young (G1 Evacuation Pause) 800M->200M(1024M) 150.0ms
+[3.000s][info][gc] GC(2) Pause Mixed (G1 Evacuation Pause) 700M->100M(1024M) 102.0ms
+[4.000s][info][gc] GC(3) Pause Full (System.gc()) 600M->120M(1024M) 100.0ms

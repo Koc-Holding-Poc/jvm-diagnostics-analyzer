@@ -22,6 +22,9 @@ Thumbs.db
 heap-dumps/
 *.hprof
 *.log
+!src/test/resources/
+!src/test/resources/gc-logs/
+!src/test/resources/gc-logs/*.log
 
 # Environment secrets
 .env

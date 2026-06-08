@@ -1,0 +1,3 @@
+[0.015s][info][gc] Using ZGC
+[1.000s][info][gc] GC(0) Pause Young (Concurrent Start) 1500M->1200M(2048M) 5.0ms
+[2.000s][info][gc] GC(1) Pause Young (Concurrent Start) 1700M->1300M(2048M) 10.0ms
