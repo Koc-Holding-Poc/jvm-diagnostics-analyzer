@@ -83,8 +83,14 @@ public class ThreadDumpAnalysisService {
     }
 
     private ThreadDumpSnapshot parseSnapshot(Path threadDumpPath, int index) throws IOException {
-        String content = Files.readString(threadDumpPath, StandardCharsets.UTF_8);
-        log.info("Parsing thread dump {}: {} ({} chars)", index, threadDumpPath.getFileName(), content.length());
+        Path trustedBase = Path.of("./heap-dumps").toAbsolutePath().normalize();
+        Path normalizedPath = threadDumpPath.toAbsolutePath().normalize();
+        if (!normalizedPath.startsWith(trustedBase)) {
+            throw new IOException("Invalid thread dump path");
+        }
+
+        String content = Files.readString(normalizedPath, StandardCharsets.UTF_8);
+        log.info("Parsing thread dump {}: {} ({} chars)", index, normalizedPath.getFileName(), content.length());
 
         Map<String, Integer> stateCounts = createStateCounter();
         Map<String, String> threadStates = new LinkedHashMap<>();
