@@ -12,7 +12,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.*;
-import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -283,27 +282,32 @@ public class MatDownloadService {
             if (Files.exists(directCmd)) return directCmd;
         }
 
-        // One level down (common after extraction: mat/mat/ParseHeapDump.sh)
-        try (var stream = Files.list(dir)) {
-            return stream.filter(Files::isDirectory)
-                    .map(sub -> {
-                        Path candidate = sub.resolve(scriptName);
-                        if (Files.exists(candidate)) {
-                            return candidate;
-                        }
-                        if (os.contains("win")) {
-                            Path cmdCandidate = sub.resolve("ParseHeapDump.cmd");
-                            if (Files.exists(cmdCandidate)) {
-                                return cmdCandidate;
-                            }
-                        }
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
+        // Search recursively to support nested extraction layouts (e.g. macOS .app bundles).
+        try (var stream = Files.walk(dir)) {
+            Path nestedScript = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> scriptName.equals(p.getFileName().toString()))
                     .findFirst()
                     .orElse(null);
+            if (nestedScript != null) {
+                return nestedScript;
+            }
         } catch (IOException e) {
             return null;
         }
+
+        if (os.contains("win")) {
+            try (var stream = Files.walk(dir)) {
+                return stream
+                        .filter(Files::isRegularFile)
+                        .filter(p -> "ParseHeapDump.cmd".equals(p.getFileName().toString()))
+                        .findFirst()
+                        .orElse(null);
+            } catch (IOException e) {
+                return null;
+            }
+        }
+
+        return null;
     }
 }
