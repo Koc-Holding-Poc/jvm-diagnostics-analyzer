@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -107,6 +108,14 @@ public class AnalysisService {
      */
     @Async("analysisExecutor")
     public void runThreadDumpAnalysis(String analysisId, Path filePath) {
+        runThreadDumpAnalysis(analysisId, List.of(filePath));
+    }
+
+    /**
+     * Runs multi-thread dump comparative analysis pipeline asynchronously.
+     */
+    @Async("analysisExecutor")
+    public void runThreadDumpAnalysis(String analysisId, List<Path> filePaths) {
         AnalysisState state = analysisRegistry.get(analysisId);
         if (state == null) {
             log.error("Analysis {} not found in registry", analysisId);
@@ -116,9 +125,9 @@ public class AnalysisService {
         try {
             // Phase 1: Parse thread dump
             state.setStatus(AnalysisStatus.ANALYZING);
-            log.info("[{}] Parsing thread dump from {}", analysisId, filePath);
+            log.info("[{}] Parsing {} thread dump file(s)", analysisId, filePaths.size());
 
-            String staticReport = threadDumpAnalysisService.analyze(filePath);
+            String staticReport = threadDumpAnalysisService.analyze(filePaths);
             state.setStaticReport(staticReport);
             log.info("[{}] Thread dump parsing complete ({} chars)", analysisId, staticReport.length());
 
@@ -138,7 +147,7 @@ public class AnalysisService {
             state.setErrorMessage(e.getMessage());
             log.error("[{}] Thread dump analysis failed", analysisId, e);
         } finally {
-            cleanupAnalysisFiles(analysisId, filePath);
+            cleanupAnalysisFiles(analysisId, filePaths);
         }
     }
 
@@ -224,6 +233,15 @@ public class AnalysisService {
 
         } catch (IOException e) {
             log.warn("[{}] Error during file cleanup: {}", analysisId, e.getMessage());
+        }
+    }
+
+    private void cleanupAnalysisFiles(String analysisId, List<Path> filePaths) {
+        if (filePaths == null || filePaths.isEmpty()) {
+            return;
+        }
+        for (Path filePath : filePaths) {
+            cleanupAnalysisFiles(analysisId, filePath);
         }
     }
 

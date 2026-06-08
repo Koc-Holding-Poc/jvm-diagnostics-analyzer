@@ -28,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.List;
@@ -354,8 +355,17 @@ public class AnalysisController {
     /** Upload a thread dump (.txt, .tdump, .log) file for analysis. */
     @PostMapping("/api/thread-dump/upload")
     @ResponseBody
-    public ResponseEntity<?> uploadThreadDump(@RequestParam("file") MultipartFile file) {
-        return handleUpload(file, AnalysisType.THREAD_DUMP, null, "thread-dump.txt");
+    public ResponseEntity<?> uploadThreadDump(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files) {
+        List<MultipartFile> requestedFiles = new ArrayList<>();
+        if (files != null) {
+            files.stream().filter(f -> f != null && !f.isEmpty()).forEach(requestedFiles::add);
+        }
+        if (file != null && !file.isEmpty()) {
+            requestedFiles.add(file);
+        }
+        return handleThreadDumpUpload(requestedFiles);
     }
 
     /** Upload a GC log (.log, .txt) file for analysis. */
@@ -602,5 +612,63 @@ public class AnalysisController {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Upload failed: " + e.getMessage()));
         }
+    }
+
+    private ResponseEntity<?> handleThreadDumpUpload(List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "No file provided."));
+        }
+
+        String analysisId = UUID.randomUUID().toString();
+        String displayName = files.size() == 1
+                ? safeOriginalName(files.getFirst(), "thread-dump.txt")
+                : files.size() + " thread dumps";
+
+        long totalSize = files.stream().mapToLong(MultipartFile::getSize).sum();
+        log.info("Received THREAD_DUMP upload: {} file(s), {} bytes, analysisId={}",
+                files.size(), totalSize, analysisId);
+
+        try {
+            AnalysisState state = analysisService.createAnalysis(analysisId, displayName, AnalysisType.THREAD_DUMP);
+            state.setFileSizeBytes(totalSize);
+            state.setStatus(AnalysisStatus.ANALYZING);
+
+            List<Path> savedPaths = new ArrayList<>();
+            for (MultipartFile dumpFile : files) {
+                savedPaths.add(fileStorageService.store(dumpFile, analysisId));
+            }
+
+            if (savedPaths.size() == 1) {
+                analysisService.runThreadDumpAnalysis(analysisId, savedPaths.getFirst());
+            } else {
+                analysisService.runThreadDumpAnalysis(analysisId, savedPaths);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "analysisId", analysisId,
+                    "fileName", displayName,
+                    "analysisType", AnalysisType.THREAD_DUMP.name(),
+                    "dumpCount", savedPaths.size(),
+                    "message", "Upload complete. Comparative analysis started."
+            ));
+
+        } catch (Exception e) {
+            log.error("Thread dump upload failed for analysisId={}", analysisId, e);
+            AnalysisState state = analysisService.getAnalysis(analysisId);
+            if (state != null) {
+                state.setStatus(AnalysisStatus.FAILED);
+                state.setErrorMessage("Upload failed: " + e.getMessage());
+            }
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Upload failed: " + e.getMessage()));
+        }
+    }
+
+    private String safeOriginalName(MultipartFile file, String defaultFilename) {
+        String originalName = file.getOriginalFilename();
+        if (originalName == null || originalName.isBlank()) {
+            return defaultFilename;
+        }
+        return originalName;
     }
 }

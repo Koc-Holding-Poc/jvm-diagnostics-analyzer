@@ -16,6 +16,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -164,7 +165,7 @@ class AnalysisServiceTest {
 
         analysisService.createAnalysis("thread-1", "threads.txt", AnalysisType.THREAD_DUMP);
 
-        when(threadDumpAnalysisService.analyze(any(Path.class)))
+        when(threadDumpAnalysisService.analyze(anyList()))
                 .thenReturn("42 threads, 0 deadlocks");
         when(springAiService.analyzeThreadDump(anyString()))
                 .thenReturn("## Thread Analysis\nNo deadlocks found.");
@@ -187,7 +188,7 @@ class AnalysisServiceTest {
 
         analysisService.createAnalysis("thread-2", "bad_thread.txt", AnalysisType.THREAD_DUMP);
 
-        when(threadDumpAnalysisService.analyze(any(Path.class)))
+        when(threadDumpAnalysisService.analyze(anyList()))
                 .thenThrow(new IOException("Cannot parse thread dump"));
 
         analysisService.runThreadDumpAnalysis("thread-2", threadFile);
