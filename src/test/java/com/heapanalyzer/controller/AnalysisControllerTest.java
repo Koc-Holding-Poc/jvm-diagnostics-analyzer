@@ -17,10 +17,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Path;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -98,5 +105,28 @@ class AnalysisControllerTest {
         // Act & Assert
         mockMvc.perform(get("/api/analysis/{id}/status", analysisId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void uploadThreadDump_WithMultipleFiles_ShouldStartComparativeAnalysis() throws Exception {
+        AnalysisState state = new AnalysisState("any-id", "2 thread dumps", AnalysisType.THREAD_DUMP);
+        when(analysisService.createAnalysis(anyString(), anyString(), eq(AnalysisType.THREAD_DUMP))).thenReturn(state);
+        when(fileStorageService.store(any(MultipartFile.class), anyString()))
+                .thenReturn(Path.of("/tmp/dump-1.txt"))
+                .thenReturn(Path.of("/tmp/dump-2.txt"));
+
+        MockMultipartFile dump1 = new MockMultipartFile(
+                "files", "dump-1.txt", "text/plain", "\"worker-1\"\n".getBytes());
+        MockMultipartFile dump2 = new MockMultipartFile(
+                "files", "dump-2.txt", "text/plain", "\"worker-2\"\n".getBytes());
+
+        mockMvc.perform(multipart("/api/thread-dump/upload")
+                        .file(dump1)
+                        .file(dump2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisType").value(AnalysisType.THREAD_DUMP.name()))
+                .andExpect(jsonPath("$.dumpCount").value(2));
+
+        verify(analysisService).runThreadDumpAnalysis(anyString(), anyList());
     }
 }

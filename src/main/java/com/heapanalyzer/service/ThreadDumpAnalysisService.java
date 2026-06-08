@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +27,7 @@ public class ThreadDumpAnalysisService {
 
     /** Max characters to send to the LLM */
     private static final int MAX_REPORT_CHARS = 30_000;
+    private static final int MAX_RAW_SECTION_CHARS = 6_000;
 
     private static final Pattern THREAD_NAME_PATTERN =
             Pattern.compile("^\"(.+?)\".*");
@@ -40,46 +42,77 @@ public class ThreadDumpAnalysisService {
      * Parses the thread dump file and produces a structured summary.
      */
     public String analyze(Path threadDumpPath) throws IOException {
-        String content = Files.readString(threadDumpPath, StandardCharsets.UTF_8);
-        log.info("Parsing thread dump: {} ({} chars)", threadDumpPath.getFileName(), content.length());
+        return analyze(List.of(threadDumpPath));
+    }
+
+    /**
+     * Parses multiple thread dump files and produces a comparative summary.
+     */
+    public String analyze(List<Path> threadDumpPaths) throws IOException {
+        if (threadDumpPaths == null || threadDumpPaths.isEmpty()) {
+            throw new IOException("Thread dump file list cannot be null or empty.");
+        }
+
+        List<ThreadDumpSnapshot> snapshots = new ArrayList<>();
+        int index = 1;
+        for (Path threadDumpPath : threadDumpPaths) {
+            snapshots.add(parseSnapshot(threadDumpPath, index++));
+        }
 
         StringBuilder report = new StringBuilder();
-        report.append("Thread Dump Analysis Report\n");
+        report.append("Thread Dump Comparative Analysis Report\n");
         report.append("=".repeat(60)).append("\n\n");
+        report.append("Total dumps analyzed: ").append(snapshots.size()).append("\n\n");
 
-        // Thread state counts
-        Map<String, Integer> stateCounts = new LinkedHashMap<>();
-        stateCounts.put("RUNNABLE", 0);
-        stateCounts.put("WAITING", 0);
-        stateCounts.put("TIMED_WAITING", 0);
-        stateCounts.put("BLOCKED", 0);
-        stateCounts.put("NEW", 0);
-        stateCounts.put("TERMINATED", 0);
+        report.append("## Dump Timeline\n\n");
+        for (ThreadDumpSnapshot snapshot : snapshots) {
+            report.append(String.format("  %d. %s\n", snapshot.index, snapshot.fileName));
+        }
+        report.append("\n");
 
-        // Parse threads
-        List<String> blockedThreads = new ArrayList<>();
+        for (ThreadDumpSnapshot snapshot : snapshots) {
+            appendSingleDumpSummary(report, snapshot);
+        }
+
+        appendComparativeSection(report, snapshots);
+        appendRawDumps(report, snapshots);
+
+        String result = report.toString();
+        log.info("Thread dump analysis complete: {} dumps analyzed, {} chars", snapshots.size(), result.length());
+        return result;
+    }
+
+    private ThreadDumpSnapshot parseSnapshot(Path threadDumpPath, int index) throws IOException {
+        Path trustedBase = Path.of("./heap-dumps").toAbsolutePath().normalize();
+        Path normalizedPath = threadDumpPath.toAbsolutePath().normalize();
+        if (!normalizedPath.startsWith(trustedBase)) {
+            throw new IOException("Invalid thread dump path");
+        }
+
+        String content = Files.readString(normalizedPath, StandardCharsets.UTF_8);
+        log.info("Parsing thread dump {}: {} ({} chars)", index, normalizedPath.getFileName(), content.length());
+
+        Map<String, Integer> stateCounts = createStateCounter();
+        Map<String, String> threadStates = new LinkedHashMap<>();
+        Set<String> blockedThreads = new LinkedHashSet<>();
+        Set<String> waitingThreads = new LinkedHashSet<>();
         List<String> runnableThreads = new ArrayList<>();
+
         int totalThreads = 0;
         boolean hasDeadlock = false;
         StringBuilder deadlockSection = new StringBuilder();
-
         String[] lines = content.split("\n");
         String currentThreadName = null;
-        String currentState = null;
         boolean inDeadlockSection = false;
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
 
-            // Detect deadlock section
             Matcher deadlockMatcher = DEADLOCK_PATTERN.matcher(line);
             if (deadlockMatcher.find()) {
                 hasDeadlock = true;
                 inDeadlockSection = true;
-                deadlockSection.append(line).append("\n");
-                continue;
             }
-
             if (inDeadlockSection) {
                 deadlockSection.append(line).append("\n");
                 if (line.trim().isEmpty() && i + 1 < lines.length
@@ -88,87 +121,245 @@ public class ThreadDumpAnalysisService {
                         && !lines[i + 1].contains("which is held by")) {
                     inDeadlockSection = false;
                 }
-                continue;
             }
 
-            // Match thread header
             Matcher nameMatcher = THREAD_NAME_PATTERN.matcher(line);
             if (nameMatcher.matches()) {
                 currentThreadName = nameMatcher.group(1);
                 totalThreads++;
-                currentState = null;
             }
 
-            // Match thread state
             Matcher stateMatcher = THREAD_STATE_PATTERN.matcher(line);
             if (stateMatcher.find()) {
-                currentState = stateMatcher.group(1);
+                String currentState = stateMatcher.group(1);
                 stateCounts.merge(currentState, 1, Integer::sum);
-
-                if ("BLOCKED".equals(currentState) && currentThreadName != null) {
+                if (currentThreadName == null) {
+                    continue;
+                }
+                threadStates.put(currentThreadName, currentState);
+                if ("BLOCKED".equals(currentState)) {
                     blockedThreads.add(currentThreadName);
                 }
-                if ("RUNNABLE".equals(currentState) && currentThreadName != null) {
+                if ("WAITING".equals(currentState) || "TIMED_WAITING".equals(currentState)) {
+                    waitingThreads.add(currentThreadName);
+                }
+                if ("RUNNABLE".equals(currentState)) {
                     runnableThreads.add(currentThreadName);
                 }
             }
         }
 
-        // Summary
-        report.append("## Thread Summary\n\n");
-        report.append(String.format("Total threads found: %d\n\n", totalThreads));
+        return new ThreadDumpSnapshot(
+                index,
+                threadDumpPath.getFileName().toString(),
+                content,
+                totalThreads,
+                stateCounts,
+                threadStates,
+                blockedThreads,
+                waitingThreads,
+                runnableThreads,
+                hasDeadlock,
+                deadlockSection.toString()
+        );
+    }
 
+    private void appendSingleDumpSummary(StringBuilder report, ThreadDumpSnapshot snapshot) {
+        report.append("## Snapshot ").append(snapshot.index)
+                .append(" — ").append(snapshot.fileName).append("\n\n");
+        report.append(String.format("Total threads found: %d\n\n", snapshot.totalThreads));
         report.append("### Thread State Distribution\n\n");
-        for (var entry : stateCounts.entrySet()) {
+        for (var entry : snapshot.stateCounts.entrySet()) {
             if (entry.getValue() > 0) {
-                double pct = totalThreads > 0 ? (entry.getValue() * 100.0 / totalThreads) : 0;
+                double pct = snapshot.totalThreads > 0 ? (entry.getValue() * 100.0 / snapshot.totalThreads) : 0;
                 report.append(String.format("  %-15s : %4d  (%.1f%%)\n",
                         entry.getKey(), entry.getValue(), pct));
             }
         }
         report.append("\n");
 
-        // Deadlock info
-        if (hasDeadlock) {
+        if (snapshot.hasDeadlock) {
             report.append("### ⚠️ DEADLOCK DETECTED\n\n");
-            report.append(deadlockSection).append("\n");
+            report.append(snapshot.deadlockSection).append("\n");
         } else {
             report.append("### Deadlock Check: No deadlocks detected\n\n");
         }
 
-        // Blocked threads
-        if (!blockedThreads.isEmpty()) {
-            report.append("### Blocked Threads (").append(blockedThreads.size()).append(")\n\n");
-            for (String t : blockedThreads) {
+        if (!snapshot.blockedThreads.isEmpty()) {
+            report.append("### Blocked Threads (").append(snapshot.blockedThreads.size()).append(")\n\n");
+            for (String t : snapshot.blockedThreads) {
                 report.append("  - ").append(t).append("\n");
             }
             report.append("\n");
         }
 
-        // Top runnable threads
-        if (!runnableThreads.isEmpty()) {
+        if (!snapshot.runnableThreads.isEmpty()) {
             report.append("### Active Runnable Threads (top 20)\n\n");
-            runnableThreads.stream().limit(20).forEach(t ->
+            snapshot.runnableThreads.stream().limit(20).forEach(t ->
                     report.append("  - ").append(t).append("\n"));
             report.append("\n");
         }
+    }
 
-        // Append raw content (truncated) for AI context
-        report.append("## Raw Thread Dump (for detailed analysis)\n\n");
-        report.append("```\n");
-
-        String rawSection = content;
-        int remainingChars = MAX_REPORT_CHARS - report.length() - 100;
-        if (rawSection.length() > remainingChars && remainingChars > 0) {
-            rawSection = rawSection.substring(0, remainingChars)
-                    + "\n\n[... THREAD DUMP TRUNCATED ...]";
+    private void appendComparativeSection(StringBuilder report, List<ThreadDumpSnapshot> snapshots) {
+        report.append("## Comparative Analysis Across Dumps\n\n");
+        if (snapshots.size() < 2) {
+            report.append("Comparative analysis requires at least 2 dumps.\n\n");
+            return;
         }
-        report.append(rawSection);
-        report.append("\n```\n");
 
-        String result = report.toString();
-        log.info("Thread dump analysis complete: {} threads found, deadlock={}, {} chars",
-                totalThreads, hasDeadlock, result.length());
-        return result;
+        Set<String> allThreadNames = new LinkedHashSet<>();
+        snapshots.forEach(snapshot -> allThreadNames.addAll(snapshot.threadStates.keySet()));
+
+        Map<String, List<String>> stateSequences = new LinkedHashMap<>();
+        for (String threadName : allThreadNames) {
+            List<String> sequence = snapshots.stream()
+                    .map(snapshot -> snapshot.threadStates.getOrDefault(threadName, "MISSING"))
+                    .toList();
+            stateSequences.put(threadName, sequence);
+        }
+
+        report.append("### Thread State Transitions\n\n");
+        List<String> transitionedThreads = stateSequences.entrySet().stream()
+                .filter(entry -> new LinkedHashSet<>(entry.getValue()).size() > 1)
+                .map(entry -> "  - " + entry.getKey() + " : " + String.join(" -> ", entry.getValue()))
+                .toList();
+        if (transitionedThreads.isEmpty()) {
+            report.append("  - No state transitions detected across dumps.\n\n");
+        } else {
+            transitionedThreads.forEach(line -> report.append(line).append("\n"));
+            report.append("\n");
+        }
+
+        report.append("### Continuously BLOCKED/WAITING Threads\n\n");
+        List<String> persistentBlocked = stateSequences.entrySet().stream()
+                .filter(entry -> entry.getValue().stream().allMatch("BLOCKED"::equals))
+                .map(Map.Entry::getKey)
+                .toList();
+        List<String> persistentWaiting = stateSequences.entrySet().stream()
+                .filter(entry -> entry.getValue().stream().allMatch(state -> "WAITING".equals(state) || "TIMED_WAITING".equals(state)))
+                .map(Map.Entry::getKey)
+                .toList();
+        if (persistentBlocked.isEmpty() && persistentWaiting.isEmpty()) {
+            report.append("  - No thread stayed continuously BLOCKED or WAITING/TIMED_WAITING across all dumps.\n\n");
+        } else {
+            if (!persistentBlocked.isEmpty()) {
+                report.append("  - Continuously BLOCKED: ")
+                        .append(String.join(", ", persistentBlocked)).append("\n");
+            }
+            if (!persistentWaiting.isEmpty()) {
+                report.append("  - Continuously WAITING/TIMED_WAITING: ")
+                        .append(String.join(", ", persistentWaiting)).append("\n");
+            }
+            report.append("\n");
+        }
+
+        report.append("### New / Disappeared Threads Per Dump\n\n");
+        for (int i = 1; i < snapshots.size(); i++) {
+            ThreadDumpSnapshot previous = snapshots.get(i - 1);
+            ThreadDumpSnapshot current = snapshots.get(i);
+            Set<String> newThreads = new LinkedHashSet<>(current.threadStates.keySet());
+            newThreads.removeAll(previous.threadStates.keySet());
+            Set<String> disappearedThreads = new LinkedHashSet<>(previous.threadStates.keySet());
+            disappearedThreads.removeAll(current.threadStates.keySet());
+
+            report.append(String.format("  - Snapshot %d -> %d\n", previous.index, current.index));
+            report.append("    - New: ");
+            report.append(newThreads.isEmpty() ? "none" : String.join(", ", newThreads)).append("\n");
+            report.append("    - Disappeared: ");
+            report.append(disappearedThreads.isEmpty() ? "none" : String.join(", ", disappearedThreads)).append("\n");
+        }
+        report.append("\n");
+
+        report.append("### Problematic Thread Time Series (by dump order)\n\n");
+        Set<String> trendThreads = new LinkedHashSet<>();
+        trendThreads.addAll(persistentBlocked);
+        trendThreads.addAll(persistentWaiting);
+        trendThreads.addAll(stateSequences.entrySet().stream()
+                .filter(entry -> entry.getValue().contains("BLOCKED")
+                        || entry.getValue().contains("WAITING")
+                        || entry.getValue().contains("TIMED_WAITING"))
+                .map(Map.Entry::getKey)
+                .limit(20)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
+        if (trendThreads.isEmpty()) {
+            report.append("  - No problematic thread trends detected.\n\n");
+        } else {
+            trendThreads.stream().limit(20).forEach(thread ->
+                    report.append("  - ").append(thread).append(" : ")
+                            .append(String.join(" -> ", stateSequences.get(thread))).append("\n"));
+            report.append("\n");
+        }
+    }
+
+    private void appendRawDumps(StringBuilder report, List<ThreadDumpSnapshot> snapshots) {
+        report.append("## Raw Thread Dumps (truncated)\n\n");
+        report.append("```\n");
+        for (ThreadDumpSnapshot snapshot : snapshots) {
+            int remainingChars = MAX_REPORT_CHARS - report.length() - 100;
+            if (remainingChars <= 0) {
+                report.append("\n[... ADDITIONAL THREAD DUMPS TRUNCATED ...]\n");
+                break;
+            }
+            int sectionLimit = Math.min(MAX_RAW_SECTION_CHARS, remainingChars);
+            String rawSection = snapshot.rawContent;
+            if (rawSection.length() > sectionLimit) {
+                rawSection = rawSection.substring(0, sectionLimit)
+                        + "\n\n[... SNAPSHOT " + snapshot.index + " TRUNCATED ...]";
+            }
+            report.append("\n--- SNAPSHOT ").append(snapshot.index)
+                    .append(" : ").append(snapshot.fileName).append(" ---\n");
+            report.append(rawSection).append("\n");
+        }
+        report.append("\n```\n");
+    }
+
+    private Map<String, Integer> createStateCounter() {
+        Map<String, Integer> stateCounts = new LinkedHashMap<>();
+        stateCounts.put("RUNNABLE", 0);
+        stateCounts.put("WAITING", 0);
+        stateCounts.put("TIMED_WAITING", 0);
+        stateCounts.put("BLOCKED", 0);
+        stateCounts.put("NEW", 0);
+        stateCounts.put("TERMINATED", 0);
+        return stateCounts;
+    }
+
+    private static final class ThreadDumpSnapshot {
+        private final int index;
+        private final String fileName;
+        private final String rawContent;
+        private final int totalThreads;
+        private final Map<String, Integer> stateCounts;
+        private final Map<String, String> threadStates;
+        private final Set<String> blockedThreads;
+        private final Set<String> waitingThreads;
+        private final List<String> runnableThreads;
+        private final boolean hasDeadlock;
+        private final String deadlockSection;
+
+        private ThreadDumpSnapshot(int index,
+                                   String fileName,
+                                   String rawContent,
+                                   int totalThreads,
+                                   Map<String, Integer> stateCounts,
+                                   Map<String, String> threadStates,
+                                   Set<String> blockedThreads,
+                                   Set<String> waitingThreads,
+                                   List<String> runnableThreads,
+                                   boolean hasDeadlock,
+                                   String deadlockSection) {
+            this.index = index;
+            this.fileName = fileName;
+            this.rawContent = rawContent;
+            this.totalThreads = totalThreads;
+            this.stateCounts = stateCounts;
+            this.threadStates = threadStates;
+            this.blockedThreads = blockedThreads;
+            this.waitingThreads = waitingThreads;
+            this.runnableThreads = runnableThreads;
+            this.hasDeadlock = hasDeadlock;
+            this.deadlockSection = deadlockSection;
+        }
     }
 }

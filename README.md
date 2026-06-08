@@ -17,7 +17,9 @@ Built with **Spring Boot 4**, **Java 25**, **Eclipse MAT**, and **Spring AI**.
 
 ### 🧵 Thread Dump Analysis
 - **Thread state parsing** — Extracts RUNNABLE, WAITING, BLOCKED, TIMED_WAITING distributions
+- **Multi-dump comparison** — Upload multiple dumps (recommended 3-5) to compare behavior over time
 - **Deadlock detection** — Automatically detects Java-level deadlocks
+- **Thread trend tracking** — Detects persistent BLOCKED/WAITING threads and state transitions
 - **AI concurrency analysis** — Identifies contention bottlenecks and suggests concurrency fixes
 
 ### 📊 GC Log Analysis
@@ -182,9 +184,10 @@ Open **http://localhost:8080**.
 ### Thread Dump Analysis
 
 1. Navigate to **Thread Dump** from the landing page
-2. Upload a thread dump file (`.txt`, `.tdump`, `.log`) captured via `jstack` or `jcmd`
-3. Wait for thread state parsing + AI analysis
-4. Review deadlock detection, contention analysis, and concurrency recommendations
+2. Upload one or more thread dump files (`.txt`, `.tdump`, `.log`) captured via `jstack` or `jcmd`
+3. For comparative diagnostics, upload a time-ordered set (for example every 5 minutes)
+4. Wait for thread state parsing/comparison + AI analysis
+5. Review deadlock detection, state transitions, persistent blocked/waiting threads, and trend recommendations
 
 ### GC Log Analysis
 

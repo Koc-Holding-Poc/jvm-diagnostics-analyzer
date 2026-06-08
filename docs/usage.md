@@ -30,8 +30,9 @@ Notes:
 ## Thread Dump Analysis
 
 1. Open /thread-dump.
-2. Upload a thread dump file (.txt, .tdump, or .log).
-3. Poll status until COMPLETED.
+2. Upload one or more thread dump files (.txt, .tdump, or .log).
+3. For trend analysis, upload 3-5 dumps captured at regular intervals.
+4. Poll status until COMPLETED.
 
 ## GC Log Analysis
 

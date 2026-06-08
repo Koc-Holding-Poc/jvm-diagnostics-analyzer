@@ -26,7 +26,7 @@
             </svg>
             Thread Dump Analysis
         </h1>
-        <p>Upload your thread dump for AI-powered deadlock detection and concurrency analysis</p>
+        <p>Upload 1 or more thread dumps for AI-powered deadlock detection, comparison, and trend analysis</p>
     </div>
 </section>
 
@@ -39,9 +39,10 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
             </svg>
         </div>
-        <h3>Drag &amp; drop your thread dump here</h3>
-        <p>or click to browse — supports <code>.txt</code>, <code>.tdump</code>, <code>.log</code> files</p>
-        <input type="file" id="file-input" accept=".txt,.tdump,.log,.out" style="display: none;"/>
+        <h3>Drag &amp; drop your thread dump set here</h3>
+        <p>or click to browse — select 3-5 files for best comparison (<code>.txt</code>, <code>.tdump</code>, <code>.log</code>)</p>
+        <input type="file" id="file-input" accept=".txt,.tdump,.log,.out" multiple style="display: none;"/>
+        <ul id="dump-timeline" style="display:none; margin-top:12px; text-align:left;"></ul>
     </div>
 
     <!-- Upload Progress -->
@@ -132,12 +133,12 @@
         validateExt: (name) => true,
         extError: 'Please select a valid thread dump file.',
         steps: [
-            { key: 'UPLOADING',      label: 'Uploading File',           icon: '📤' },
-            { key: 'ANALYZING',      label: 'Parsing Thread Dump',     icon: '🔍' },
+            { key: 'UPLOADING',      label: 'Uploading Dump Set',      icon: '📤' },
+            { key: 'ANALYZING',      label: 'Comparing Thread Dumps',  icon: '🔍' },
             { key: 'AI_PROCESSING',  label: 'AI Analysis',             icon: '🤖' },
             { key: 'COMPLETED',      label: 'Analysis Complete',       icon: '✅' },
         ],
-        staticReportLabel: 'Static Analysis Report (Eclipse MAT)',
+        staticReportLabel: 'Thread Dump Comparative Report',
     };
 
     let currentAnalysisId = null;
@@ -152,6 +153,7 @@
     const uploadPercent = $('upload-percent');
     const uploadFileName = $('upload-file-name');
     const uploadSize = $('upload-size');
+    const dumpTimeline = $('dump-timeline');
     const pipelineSection = $('pipeline-section');
     const pipelineSteps = $('pipeline-steps');
     const errorSection = $('error-section');
@@ -195,9 +197,9 @@
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
     });
-    fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+    fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFiles(e.target.files); });
 
     function formatBytes(bytes) {
         if (bytes === 0) return '0 B';
@@ -206,30 +208,52 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
-    function handleFile(file) {
-        if (!CONFIG.validateExt(file.name)) {
-            alert(CONFIG.extError);
-            return;
+    function formatDateTime(epochMillis) {
+        if (!epochMillis) return 'unknown time';
+        return new Date(epochMillis).toLocaleString();
+    }
+
+    function handleFiles(fileList) {
+        const selectedFiles = Array.from(fileList);
+        if (!selectedFiles.length) return;
+
+        for (const file of selectedFiles) {
+            if (!CONFIG.validateExt(file.name)) {
+                alert(CONFIG.extError);
+                return;
+            }
         }
 
         // Reset
         errorSection.classList.remove('visible');
         resultsSection.classList.remove('visible');
         staticReportSection.classList.remove('visible');
+        dumpTimeline.style.display = 'none';
+        dumpTimeline.innerHTML = '';
+
+        const orderedFiles = selectedFiles
+            .slice()
+            // Sort by dump time first, then by filename for deterministic ordering
+            .sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name));
+        const totalBytes = orderedFiles.reduce((sum, current) => sum + current.size, 0);
 
         // Show upload progress
         uploadProgress.classList.add('visible');
-        uploadFileName.textContent = file.name;
-        uploadSize.textContent = formatBytes(file.size);
+        uploadFileName.textContent = `${orderedFiles.length} dump file(s) selected`;
+        uploadSize.textContent = formatBytes(totalBytes);
         uploadBar.style.width = '0%';
         uploadPercent.textContent = '0%';
+        dumpTimeline.innerHTML = orderedFiles.map((file, idx) =>
+            `<li><strong>Dump ${idx + 1}</strong> — ${file.name} <small>(${formatDateTime(file.lastModified)})</small></li>`
+        ).join('');
+        dumpTimeline.style.display = 'block';
 
         // Show pipeline
         pipelineSection.classList.add('visible');
         renderPipeline('UPLOADING');
 
         const formData = new FormData();
-        formData.append('file', file);
+        orderedFiles.forEach(file => formData.append('files', file));
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', CONFIG.uploadUrl);

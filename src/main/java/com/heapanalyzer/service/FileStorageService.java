@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -47,14 +48,19 @@ public class FileStorageService {
      * @return the Path where the file was saved
      */
     public Path store(MultipartFile file, String analysisId) throws IOException {
-        Path targetDir = storageLocation.resolve(analysisId);
+        Path targetDir = storageLocation.resolve(analysisId).normalize().toAbsolutePath();
         Files.createDirectories(targetDir);
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isBlank()) {
             originalFilename = "heap-dump.hprof";
         } else {
-            Path fileNamePath = Paths.get(originalFilename).getFileName();
+            Path fileNamePath;
+            try {
+                fileNamePath = Paths.get(originalFilename).getFileName();
+            } catch (InvalidPathException e) {
+                throw new IOException("Invalid original filename", e);
+            }
             if (fileNamePath == null) {
                 originalFilename = "heap-dump.hprof";
             } else {
@@ -62,7 +68,14 @@ public class FileStorageService {
             }
         }
 
-        Path targetPath = targetDir.resolve(originalFilename);
+        if (originalFilename.contains("..") || originalFilename.contains("/") || originalFilename.contains("\\")) {
+            throw new IOException("Invalid filename");
+        }
+
+        Path targetPath = targetDir.resolve(originalFilename).normalize().toAbsolutePath();
+        if (!targetPath.startsWith(targetDir)) {
+            throw new IOException("Invalid target path");
+        }
 
         // Stream directly to disk — no byte[] buffering
         try (InputStream inputStream = file.getInputStream()) {
