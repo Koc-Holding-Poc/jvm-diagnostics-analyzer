@@ -20,7 +20,7 @@ class MatAnalysisServiceTest {
 
     @Test
     void resolveParseScript_windowsPrefersBat() throws Exception {
-        MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", mock(MatDownloadService.class));
+        MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", tempDir.toString(), mock(MatDownloadService.class));
         Path bat = tempDir.resolve("ParseHeapDump.bat");
         Files.writeString(bat, "echo test");
         Files.writeString(tempDir.resolve("ParseHeapDump.sh"), "echo test");
@@ -36,7 +36,7 @@ class MatAnalysisServiceTest {
 
     @Test
     void resolveParseScript_linuxUsesSh() throws Exception {
-        MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", mock(MatDownloadService.class));
+        MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", tempDir.toString(), mock(MatDownloadService.class));
         Path sh = tempDir.resolve("ParseHeapDump.sh");
         Files.writeString(sh, "echo test");
 
@@ -51,7 +51,7 @@ class MatAnalysisServiceTest {
 
     @Test
     void buildMatProcessBuilder_windowsBatStartsFromScript() {
-        MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", mock(MatDownloadService.class));
+        MatAnalysisService service = new MatAnalysisService("/opt/mat", 30, "", "8g", tempDir.toString(), mock(MatDownloadService.class));
         Path heapDump = tempDir.resolve("sample.hprof");
         Path bat = tempDir.resolve("ParseHeapDump.bat");
 
