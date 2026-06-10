@@ -175,7 +175,6 @@ private Path resolvePromptFile(String promptType) {
     }
     return resolved;
 }
-    }
 
     /**
      * Returns the custom prompt for the given type, or null if using default.
