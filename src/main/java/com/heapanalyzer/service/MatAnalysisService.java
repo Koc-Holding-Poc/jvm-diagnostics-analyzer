@@ -140,6 +140,8 @@ public class MatAnalysisService {
      * analysis report combining Leak Suspects + Overview data.
      */
     public String analyze(Path heapDumpPath) throws IOException, InterruptedException {
+        Path validatedHeapDumpPath = validateHeapDumpPath(heapDumpPath);
+
         // Auto-download MAT if not available
         if (!matDownloadService.isAvailable()) {
             log.info("MAT not found, attempting auto-download...");
@@ -154,14 +156,14 @@ public class MatAnalysisService {
                     + " (expected ParseHeapDump.sh on Unix/macOS or ParseHeapDump.bat/.cmd on Windows)");
         }
 
-        log.info("Starting MAT analysis on {} (timeout: {} min)", heapDumpPath, timeoutMinutes);
+        log.info("Starting MAT analysis on {} (timeout: {} min)", validatedHeapDumpPath, timeoutMinutes);
 
         String heapArg = "-vmargs";
-        String xmxArg = "-Xmx" + calculateMatHeap(Files.size(heapDumpPath));
+        String xmxArg = "-Xmx" + calculateMatHeap(Files.size(validatedHeapDumpPath));
 
         // Run both Leak Suspects and Overview reports in a single MAT invocation
-        ProcessBuilder pb = buildMatProcessBuilder(parseScript, heapDumpPath, heapArg, xmxArg);
-        pb.directory(heapDumpPath.getParent().toFile());
+        ProcessBuilder pb = buildMatProcessBuilder(parseScript, validatedHeapDumpPath, heapArg, xmxArg);
+        pb.directory(validatedHeapDumpPath.getParent().toFile());
         pb.redirectErrorStream(true);
 
         Process process = pb.start();
@@ -184,7 +186,7 @@ public class MatAnalysisService {
             throw new RuntimeException("MAT analysis failed (exit code " + exitCode + "):\n" + processOutput);
         }
 
-        return buildStructuredReport(heapDumpPath.getParent());
+        return buildStructuredReport(validatedHeapDumpPath.getParent());
     }
 
     /**
@@ -251,6 +253,24 @@ public class MatAnalysisService {
 
     private boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private Path validateHeapDumpPath(Path heapDumpPath) throws IOException {
+        if (heapDumpPath == null) {
+            throw new IOException("Heap dump path is required");
+        }
+
+        Path normalizedStorage = storageLocation.toAbsolutePath().normalize();
+        Path normalizedHeapDump = heapDumpPath.toAbsolutePath().normalize();
+
+        if (!normalizedHeapDump.startsWith(normalizedStorage)) {
+            throw new IOException("Heap dump path is outside the configured storage directory");
+        }
+        if (!Files.exists(normalizedHeapDump) || !Files.isRegularFile(normalizedHeapDump) || !Files.isReadable(normalizedHeapDump)) {
+            throw new IOException("Heap dump path is invalid or not readable");
+        }
+
+        return normalizedHeapDump;
     }
 
     // ========================== Report Builder ==========================
