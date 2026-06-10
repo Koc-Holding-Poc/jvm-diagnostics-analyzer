@@ -63,16 +63,19 @@ public class MatAnalysisService {
     private final long timeoutMinutes;
     private final String matHeapSize;
     private final String dynamicMaxMatMemory;
+    private final Path storageLocation;
 
     public MatAnalysisService(
             @Value("${app.mat.home:/opt/mat}") String matHome,
             @Value("${app.mat.timeout-minutes:30}") long timeoutMinutes,
             @Value("${app.mat.heap-size:}") String matHeapSize,
             @Value("${app.mat.dynamic-max-memory:8g}") String dynamicMaxMatMemory,
+            @Value("${app.storage.location:./heap-dumps}") String storageDir,
             MatDownloadService matDownloadService) {
         this.timeoutMinutes = timeoutMinutes;
         this.matHeapSize = matHeapSize;
         this.dynamicMaxMatMemory = dynamicMaxMatMemory;
+        this.storageLocation = Paths.get(storageDir).toAbsolutePath().normalize();
         this.matDownloadService = matDownloadService;
     }
 
