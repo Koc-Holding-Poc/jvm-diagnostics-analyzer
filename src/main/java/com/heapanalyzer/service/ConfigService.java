@@ -163,17 +163,28 @@ public class ConfigService {
 
     // ========================== Prompt Management ==========================
 
+    private Path resolvePromptFile(String promptType) {
+        Path baseDir = promptsDir.toAbsolutePath().normalize();
+        Path resolved = baseDir.resolve(promptType + ".txt").normalize().toAbsolutePath();
+        if (!resolved.startsWith(baseDir)) {
+            throw new IllegalArgumentException("Invalid prompt type");
+        }
+        return resolved;
+    }
+
     /**
      * Returns the custom prompt for the given type, or null if using default.
      */
     public String getCustomPrompt(String promptType) {
-        Path promptFile = promptsDir.resolve(promptType + ".txt");
-        if (Files.exists(promptFile)) {
-            try {
+        try {
+            Path promptFile = resolvePromptFile(promptType);
+            if (Files.exists(promptFile)) {
                 return Files.readString(promptFile);
-            } catch (IOException e) {
-                log.warn("Failed to read custom prompt {}: {}", promptType, e.getMessage());
             }
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid prompt type {}: {}", promptType, e.getMessage());
+        } catch (IOException e) {
+            log.warn("Failed to read custom prompt {}: {}", promptType, e.getMessage());
         }
         return null;
     }
@@ -184,8 +195,10 @@ public class ConfigService {
     public void savePrompt(String promptType, String content) {
         try {
             Files.createDirectories(promptsDir);
-            Files.writeString(promptsDir.resolve(promptType + ".txt"), content);
+            Files.writeString(resolvePromptFile(promptType), content);
             log.info("Custom prompt saved: {}", promptType);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid prompt type {}: {}", promptType, e.getMessage());
         } catch (IOException e) {
             log.error("Failed to save custom prompt {}: {}", promptType, e.getMessage());
         }
@@ -196,8 +209,10 @@ public class ConfigService {
      */
     public void resetPrompt(String promptType) {
         try {
-            Files.deleteIfExists(promptsDir.resolve(promptType + ".txt"));
+            Files.deleteIfExists(resolvePromptFile(promptType));
             log.info("Prompt reset to default: {}", promptType);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid prompt type {}: {}", promptType, e.getMessage());
         } catch (IOException e) {
             log.warn("Failed to reset prompt {}: {}", promptType, e.getMessage());
         }
@@ -207,6 +222,11 @@ public class ConfigService {
      * Returns true if the user has set a custom prompt.
      */
     public boolean hasCustomPrompt(String promptType) {
-        return Files.exists(promptsDir.resolve(promptType + ".txt"));
+        try {
+            return Files.exists(resolvePromptFile(promptType));
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid prompt type {}: {}", promptType, e.getMessage());
+            return false;
+        }
     }
 }
