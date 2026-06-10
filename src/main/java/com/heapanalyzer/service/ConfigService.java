@@ -163,13 +163,18 @@ public class ConfigService {
 
     // ========================== Prompt Management ==========================
 
-    private Path resolvePromptFile(String promptType) {
-        Path baseDir = promptsDir.toAbsolutePath().normalize();
-        Path resolved = baseDir.resolve(promptType + ".txt").normalize().toAbsolutePath();
-        if (!resolved.startsWith(baseDir)) {
-            throw new IllegalArgumentException("Invalid prompt type");
-        }
-        return resolved;
+private Path resolvePromptFile(String promptType) {
+    if (promptType == null || !promptType.matches("^[A-Za-z0-9_-]+$")) {
+        throw new IllegalArgumentException("Invalid prompt type");
+    }
+
+    Path baseDir = promptsDir.toAbsolutePath().normalize();
+    Path resolved = baseDir.resolve(promptType + ".txt").normalize();
+    if (!resolved.startsWith(baseDir)) {
+        throw new IllegalArgumentException("Invalid prompt type");
+    }
+    return resolved;
+}
     }
 
     /**
