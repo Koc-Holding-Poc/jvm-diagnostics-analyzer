@@ -273,6 +273,12 @@ public class MatAnalysisService {
             throw new IOException("Heap dump path is invalid or not readable");
         }
 
+        Path fileNamePath = normalizedHeapDump.getFileName();
+        String fileName = fileNamePath == null ? "" : fileNamePath.toString();
+        if (!fileName.matches("[A-Za-z0-9._-]+")) {
+            throw new IOException("Heap dump filename contains unsupported characters");
+        }
+
         return normalizedHeapDump;
     }
 
